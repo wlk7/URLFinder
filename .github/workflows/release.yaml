@@ -2,9 +2,9 @@ name: Windows 构建、打包和发布
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   build-and-release:
