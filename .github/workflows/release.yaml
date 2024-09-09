@@ -1,68 +1,77 @@
-name: Build and Package
+name: Windows 构建、打包和发布
 
 on:
   push:
-    branches: [ master ]  # 假设您的主分支是 main
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
-  build-and-package:
-    runs-on: ubuntu-latest
+  build-and-release:
+    runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
+    - name: 检出代码
+      uses: actions/checkout@v3
 
-    - name: Set up Go
+    - name: 设置 Go 环境
       uses: actions/setup-go@v3
       with:
-        go-version: '1.20.0'
+        go-version: '1.20.2'
 
-    - name: Build
-      run: |
-        go build -v -o myapp
+    - name: 缓存依赖
+      uses: actions/cache@v3
+      with:
+        path: ~\go\pkg\mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: 安装依赖
+      run: go mod download
+
+    - name: 构建 Windows 应用
+      run: go build -v -o myapp.exe
       env:
-        LANG: zh_CN.UTF-8  # 设置语言环境为简体中文
+        GOOS: windows
+        GOARCH: amd64
+        GO111MODULE: on
 
-    - name: Prepare Chinese Resources
+    - name: 准备中文资源
       run: |
-        mkdir -p chinese_resources
-        # 这里添加准备中文资源的命令
-        # 例如：复制中文翻译文件，生成中文文档等
-        echo "这是中文说明文件" > chinese_resources/README_zh.md
+        New-Item -ItemType Directory -Force -Path chinese_resources
+        Set-Content -Path chinese_resources\README.md -Value @"
+        # 欢迎使用我们的 Windows 应用
 
-    - name: Package
-      run: |
-        zip -r myapp_chinese.zip myapp chinese_resources
+        这是版本 $($env:GITHUB_SHA.Substring(0, 7))
 
-    - name: Upload Artifact
+        ## 使用说明
+        1. 双击 myapp.exe 运行应用程序
+        2. 如遇到任何问题，请查看我们的在线文档或联系支持
+
+        感谢您使用我们的产品！
+        "@
+
+    - name: 打包应用
+      run: Compress-Archive -Path myapp.exe, chinese_resources -DestinationPath myapp_windows_chinese.zip
+
+    - name: 上传构建产物
       uses: actions/upload-artifact@v3
       with:
-        name: myapp_chinese
-        path: myapp_chinese.zip
-        if-no-files-found: error
+        name: myapp_windows_chinese
+        path: myapp_windows_chinese.zip
 
-    - name: Create Release
+    - name: 创建发布
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}-${{ github.sha }}
-        release_name: Release ${{ github.ref }}-${{ github.sha }}
+        tag_name: v${{ github.run_number }}
+        release_name: Windows 版本 v${{ github.run_number }}
         body: |
-          这是最新的简体中文版本发布。
-          This is the latest release for Simplified Chinese version.
-        draft: false
-        prerelease: false
-
-    - name: Upload Release Asset
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./myapp_chinese.zip
-        asset_name: myapp_chinese.zip
-        asset_content_type: application/zip
+          ### Windows 版本发布说明
+          
+          这是最新的 Windows 简体中文版本发布。
+          
+          
