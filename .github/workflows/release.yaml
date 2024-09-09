@@ -1,50 +1,68 @@
-name: Go Build and Release
+name: Build and Package
 
 on:
   push:
-    branches: [ master ]  # 假设您的主分支名为 main
+    branches: [ main ]  # 假设您的主分支是 main
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
-  build:
+  build-and-package:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: '1.20.2'
-        
+        go-version: '1.20.0'
+
     - name: Build
-      run: go build -v ./...
+      run: |
+        go build -v -o myapp
       env:
         LANG: zh_CN.UTF-8  # 设置语言环境为简体中文
-        
-    - name: Test
-      run: go test -v ./...
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-    - uses: actions/checkout@v3
+    - name: Prepare Chinese Resources
+      run: |
+        mkdir -p chinese_resources
+        # 这里添加准备中文资源的命令
+        # 例如：复制中文翻译文件，生成中文文档等
+        echo "这是中文说明文件" > chinese_resources/README_zh.md
+
+    - name: Package
+      run: |
+        zip -r myapp_chinese.zip myapp chinese_resources
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
       with:
-        fetch-depth: 0
-        
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: '1.20.2'
-        
-    - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v4
-      with:
-        distribution: goreleaser
-        version: latest
-        args: release --clean
+        name: myapp_chinese
+        path: myapp_chinese.zip
+        if-no-files-found: error
+
+    - name: Create Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      id: create_release
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        LANG: zh_CN.UTF-8  # 设置语言环境为简体中文
+      with:
+        tag_name: ${{ github.ref }}-${{ github.sha }}
+        release_name: Release ${{ github.ref }}-${{ github.sha }}
+        body: |
+          这是最新的简体中文版本发布。
+          This is the latest release for Simplified Chinese version.
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./myapp_chinese.zip
+        asset_name: myapp_chinese.zip
+        asset_content_type: application/zip
